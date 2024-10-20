@@ -1,7 +1,7 @@
 import { RefreshToken } from './schemas/refresh-token.schema';
 import { LoginDto } from './dto/login.dto';
 import { SignupDto } from './dto/signup.dto';
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { CreateAuthDto } from './dto/create-auth.dto';
@@ -42,7 +42,11 @@ export class AuthService {
     if (!passwordMatch) {
       throw new BadRequestException('Sai tai khoan hoac mat khau');
     }
-    return this.generateUserTokens(user._id);
+    const tokens = await this.generateUserTokens(user._id);
+    return {
+      ...tokens,
+      userId: user._id
+    };
   }
 
   async generateUserTokens(userId) {
@@ -58,5 +62,17 @@ export class AuthService {
   async storeRefreshToken(token: string, userId) {
     const expiryDate = new Date();
     await this.RefreshTokenModel.create({ token, userId, expiryDate });
+  }
+
+  async refreshToken(refreshToken: string) {
+    const token = await this.RefreshTokenModel.findOneAndDelete({
+      token: refreshToken,
+    });
+
+    if (!token) {
+      throw new UnauthorizedException();
+    }
+
+    return this.generateUserTokens(token.userId);
   }
 }
