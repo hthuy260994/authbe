@@ -1,3 +1,4 @@
+import { LoginDto } from './dto/login.dto';
 import { SignupDto } from './dto/signup.dto';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
@@ -6,10 +7,11 @@ import { CreateAuthDto } from './dto/create-auth.dto';
 import { UpdateAuthDto } from './dto/update-auth.dto';
 import { User } from './schemas/user.schema';
 import * as bcrypt from 'bcrypt';
+import { JwtService } from '@nestjs/jwt';
 
 @Injectable()
 export class AuthService {
-  constructor(@InjectModel(User.name) private UserModel: Model<User>) { }
+  constructor(@InjectModel(User.name) private UserModel: Model<User>, private jwtService: JwtService) { }
 
   async signup(signupDto: SignupDto) {
     const { email, password, name } = signupDto;
@@ -24,23 +26,24 @@ export class AuthService {
       name, email, password: hashesPassword
     });
   }
-  create(createAuthDto: CreateAuthDto) {
-    return 'This action adds a new auth';
+
+  async login(loginDto: LoginDto) {
+    const { email, password } = loginDto;
+    const user = await this.UserModel.findOne({ email });
+    if (!user) {
+      throw new BadRequestException('Sai tai khoan hoac mat khau');
+    }
+    const passwordMatch = await bcrypt.compare(password, user.password);
+    if (!passwordMatch) {
+      throw new BadRequestException('Sai tai khoan hoac mat khau');
+    }
+    return this.generateUserTokens(user._id);
   }
 
-  findAll() {
-    return `This action returns all auth`;
-  }
-
-  findOne(id: number) {
-    return `This action returns a #${id} auth`;
-  }
-
-  update(id: number, updateAuthDto: UpdateAuthDto) {
-    return `This action updates a #${id} auth`;
-  }
-
-  remove(id: number) {
-    return `This action removes a #${id} auth`;
+  async generateUserTokens(userId) {
+    const accessToken = this.jwtService.sign({ userId }, { expiresIn: '1h' });
+    return {
+      accessToken
+    };
   }
 }
