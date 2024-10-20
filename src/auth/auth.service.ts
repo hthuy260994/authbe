@@ -1,3 +1,4 @@
+import { RefreshToken } from './schemas/refresh-token.schema';
 import { LoginDto } from './dto/login.dto';
 import { SignupDto } from './dto/signup.dto';
 import { BadRequestException, Injectable } from '@nestjs/common';
@@ -8,10 +9,14 @@ import { UpdateAuthDto } from './dto/update-auth.dto';
 import { User } from './schemas/user.schema';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
+import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class AuthService {
-  constructor(@InjectModel(User.name) private UserModel: Model<User>, private jwtService: JwtService) { }
+  constructor(
+    @InjectModel(User.name) private UserModel: Model<User>,
+    @InjectModel(RefreshToken.name) private RefreshTokenModel: Model<RefreshToken>,
+    private jwtService: JwtService) { }
 
   async signup(signupDto: SignupDto) {
     const { email, password, name } = signupDto;
@@ -42,8 +47,16 @@ export class AuthService {
 
   async generateUserTokens(userId) {
     const accessToken = this.jwtService.sign({ userId }, { expiresIn: '1h' });
+    const refreshToken = uuidv4();
+    await this.storeRefreshToken(refreshToken, userId);
     return {
-      accessToken
+      accessToken,
+      refreshToken
     };
+  }
+
+  async storeRefreshToken(token: string, userId) {
+    const expiryDate = new Date();
+    await this.RefreshTokenModel.create({ token, userId, expiryDate });
   }
 }
